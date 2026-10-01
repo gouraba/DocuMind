@@ -374,13 +374,12 @@ export default function Home() {
   const loadChats = async () => {
     try {
       const backendChats = await listChats();
-
-      const chats: Chat[] = await Promise.all(
-        backendChats.map(async (chat) => {
+      const chats: Chat[] = [];
+        for (const chat of backendChats) {
           try {
             const savedMessages = await listMessages(chat.chat_id);
 
-            return {
+            chats.push({
               id: chat.chat_id,
               title: chat.title || "New chat",
               messages: savedMessages.map((msg) => ({
@@ -388,21 +387,20 @@ export default function Home() {
                 role: msg.role,
                 content: msg.content,
               })),
-            };
+            });
           } catch (error) {
             console.error(
               `Failed to load messages for chat ${chat.chat_id}:`,
               error
             );
 
-            return {
+            chats.push({
               id: chat.chat_id,
               title: chat.title || "New chat",
               messages: [],
-            };
+            });
           }
-        })
-      );
+        }
         if (chats.length > 0) {
           setChats(chats);
 
