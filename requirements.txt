@@ -40,3 +40,4 @@ xxhash==3.7.1
 zstandard==0.25.0
 supabase==2.30.1
 fastembed
+python-multipart
