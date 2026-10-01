@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 from io import BytesIO
 import os
 import uuid
@@ -61,7 +62,16 @@ app = FastAPI(
     ),
     version="2.0.0",
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://documind-frontend-5hts.onrender.com",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ============================================================
 # CORS
