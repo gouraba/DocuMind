@@ -12,14 +12,25 @@ class EmbeddingManager:
     DIMENSION = 384
 
     def __init__(self):
-        self.model = SentenceTransformer(self.MODEL_NAME)
+        # Don't load the model during application startup.
+        self.model = None
+
+    def _get_model(self):
+        # Load the model only when an embedding is actually needed.
+        if self.model is None:
+            self.model = SentenceTransformer(self.MODEL_NAME)
+
+        return self.model
 
     def embed_text(self, text: str) -> List[float]:
         """Generate an embedding for a single text."""
+
         if not text or not text.strip():
             raise ValueError("Text must be a non-empty string.")
 
-        embedding = self.model.encode(
+        model = self._get_model()
+
+        embedding = model.encode(
             text,
             normalize_embeddings=True
         )
@@ -32,22 +43,19 @@ class EmbeddingManager:
         batch_size: int = 32
     ) -> List[List[float]]:
         """Generate embeddings for multiple chunks."""
+
         if not chunks:
             return []
 
-        embeddings = self.model.encode(
+        model = self._get_model()
+
+        embeddings = model.encode(
             chunks,
             batch_size=batch_size,
             normalize_embeddings=True,
             show_progress_bar=False
         )
-
         return embeddings.tolist()
 
-    def dimension(self) -> int:
-        """Return embedding dimension."""
-        return self.DIMENSION
 
-
-# Create one reusable instance
 embedding_manager = EmbeddingManager()
