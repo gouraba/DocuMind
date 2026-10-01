@@ -1,24 +1,24 @@
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from typing import List
 
 
 class EmbeddingManager:
     """
     Generates 384-dimensional embeddings using
-    all-MiniLM-L6-v2.
+    BAAI/bge-small-en-v1.5 through FastEmbed.
     """
 
-    MODEL_NAME = "all-MiniLM-L6-v2"
+    MODEL_NAME = "BAAI/bge-small-en-v1.5"
     DIMENSION = 384
 
     def __init__(self):
-        # Don't load the model during application startup.
         self.model = None
 
     def _get_model(self):
-        # Load the model only when an embedding is actually needed.
         if self.model is None:
-            self.model = SentenceTransformer(self.MODEL_NAME)
+            self.model = TextEmbedding(
+                model_name=self.MODEL_NAME
+            )
 
         return self.model
 
@@ -30,10 +30,9 @@ class EmbeddingManager:
 
         model = self._get_model()
 
-        embedding = model.encode(
-            text,
-            normalize_embeddings=True
-        )
+        embedding = list(
+            model.embed([text])
+        )[0]
 
         return embedding.tolist()
 
@@ -49,13 +48,14 @@ class EmbeddingManager:
 
         model = self._get_model()
 
-        embeddings = model.encode(
-            chunks,
-            batch_size=batch_size,
-            normalize_embeddings=True,
-            show_progress_bar=False
+        embeddings = list(
+            model.embed(
+                chunks,
+                batch_size=batch_size
+            )
         )
-        return embeddings.tolist()
+
+        return [embedding.tolist() for embedding in embeddings]
 
 
 embedding_manager = EmbeddingManager()
