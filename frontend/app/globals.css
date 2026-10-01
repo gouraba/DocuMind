@@ -1,0 +1,44 @@
+/*
+  NOTE on Tailwind versions: `create-next-app --tailwind` may scaffold either
+  Tailwind v3 (directives below) or v4 (a single `@import "tailwindcss";`
+  line). If your generated file already has `@import "tailwindcss";` at the
+  top, keep that line instead of the three @tailwind lines below and leave
+  everything after it as-is — nothing else in this file depends on which
+  version generated it.
+*/
+@import "tailwindcss";
+/* --font-sans and --font-mono are already defined on <html> by next/font
+   in app/layout.tsx (via the `variable` option) — nothing to declare here. */
+
+body {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background-color: #0d1013;
+  color: #e7e9ec;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Route Tailwind's font-mono utility through the IBM Plex Mono variable
+   loaded in app/layout.tsx, so chunk/data text reads as monospaced data
+   rather than decoration. */
+@layer utilities {
+  .font-mono {
+    font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+}
+
+/* Thin, low-contrast scrollbar for the chunk results panel — matches the
+   dev-tool aesthetic better than the platform default. */
+.overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #2a313a #12151a;
+}
+.overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
+}
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: #12151a;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background-color: #2a313a;
+  border-radius: 4px;
+}

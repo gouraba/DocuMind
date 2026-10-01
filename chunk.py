@@ -1,7 +1,12 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-def split_text_into_chunks(text: str, chunk_size: int = 50, chunk_overlap: int = 10) -> dict:
+def split_text_into_chunks(
+    text: str,
+    chunk_size: int = 1000,
+    chunk_overlap: int = 150
+) -> dict:
+
     if not text or not text.strip():
         raise ValueError("Input text must be a non-empty string.")
 
@@ -12,7 +17,9 @@ def split_text_into_chunks(text: str, chunk_size: int = 50, chunk_overlap: int =
         raise ValueError("chunk_overlap must be a non-negative integer.")
 
     if chunk_overlap >= chunk_size:
-        raise ValueError("chunk_overlap must be less than chunk_size.")
+        raise ValueError(
+            "chunk_overlap must be less than chunk_size."
+        )
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
