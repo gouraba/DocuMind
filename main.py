@@ -65,6 +65,13 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
+@app.get("/debug")
+def debug():
+    return {
+        "docs_url": app.docs_url,
+        "openapi_url": app.openapi_url,
+        "routes": [route.path for route in app.routes],
+    }
 # ============================================================
 # CORS
 # ============================================================
