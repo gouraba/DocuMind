@@ -1252,7 +1252,7 @@ async def upload_document(
             embedding_manager
             .embed_chunks(
                 chunks,
-                batch_size=32
+                batch_size=8
             )
         )
         print("TOTAL CHUNKS:", len(chunks))
