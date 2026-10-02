@@ -723,15 +723,24 @@ export default function Home() {
   async (id: string) => {
     if (loading) abortActiveRequest();
 
-    // Switch immediately to the selected chat
     setActiveChatId(id);
     localStorage.setItem("documind-active-chat", id);
     setMessage("");
     setView("chat");
-    if (loadedChatIdsRef.current.has(id)) {
-      setChatLoading(false);
-      return;
-    }
+
+    // Clear the currently displayed messages immediately
+    setChats((prevChats) =>
+      prevChats.map((chat) =>
+        chat.id === id
+          ? {
+              ...chat,
+              messages: [],
+            }
+          : chat
+      )
+    );
+
+    setChatLoading(true);
 
     try {
       const savedMessages = await listMessages(id);
@@ -750,16 +759,17 @@ export default function Home() {
             : chat
         )
       );
+
       loadedChatIdsRef.current.add(id);
     } catch (error) {
       console.error("Failed to load chat messages:", error);
-    }
-    finally {
-      setChatLoading(false)
+    } finally {
+      setChatLoading(false);
     }
   },
   [loading, abortActiveRequest]
 );
+ 
 
   const deleteChat = useCallback(
   async (id: string) => {
