@@ -1148,7 +1148,7 @@ def search_documents(request: SearchRequest):
     "/documents/upload",
     tags=["Documents"]
 )
-async def upload_document(
+def upload_document(
 
     chat_id: str = Form(...),
 
