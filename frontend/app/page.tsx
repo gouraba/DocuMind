@@ -353,6 +353,7 @@ export default function Home() {
   };
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [hydrated, setHydrated] = useState(true);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
@@ -364,6 +365,7 @@ export default function Home() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const loadedChatIdsRef = useRef<Set<string>>(new Set());
 
 
   // --------------------------------------------------
@@ -702,45 +704,59 @@ export default function Home() {
   // --------------------------------------------------
 
   const newChat = useCallback(async () => {
-  if (loading) abortActiveRequest();
-
-  const chat = await createChat();
-  setChats((prev) => [chat, ...prev]);
-  setActiveChatId(chat.id);
-  setMessage("");
-  setView("chat");
+    if (loading) abortActiveRequest();
+      const chat = await createChat();
+      setChats((prev) => [chat, ...prev]);
+      setActiveChatId(chat.id);
+      loadedChatIdsRef.current.add(chat.id);
+      localStorage.setItem("documind-active-chat", chat.id);
+      setMessage("");
+      setDocuments([]);
+      setSelectedDocumentIds([]);
+      setView("chat");
   }, [loading, abortActiveRequest]);
 
   const openChat = useCallback(
-    async (id: string) => {
-      if (loading) abortActiveRequest();
+  async (id: string) => {
+    if (loading) abortActiveRequest();
 
-      setActiveChatId(id);
-      setMessage("");
-      setView("chat");
+    // Switch immediately to the selected chat
+    setActiveChatId(id);
+    localStorage.setItem("documind-active-chat", id);
+    setMessage("");
+    setView("chat");
+    if (loadedChatIdsRef.current.has(id)) {
+      setChatLoading(false);
+      return;
+    }
 
-      try {
-        const savedMessages = await listMessages(id);
-        setChats((prevChats) =>
-          prevChats.map((chat) =>
-            chat.id === id
-              ? {
-                  ...chat,
-                  messages: savedMessages.map((msg) => ({
-                    id: msg.message_id,
-                    role: msg.role,
-                    content: msg.content,
-                  })),
-                }
-              : chat
-          )
-        );
-      } catch (error) {
-        console.error("Failed to load chat messages:", error);
-      }
-    },
-    [loading, abortActiveRequest]
-  );
+    try {
+      const savedMessages = await listMessages(id);
+
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat.id === id
+            ? {
+                ...chat,
+                messages: savedMessages.map((msg) => ({
+                  id: msg.message_id,
+                  role: msg.role,
+                  content: msg.content,
+                })),
+              }
+            : chat
+        )
+      );
+      loadedChatIdsRef.current.add(id);
+    } catch (error) {
+      console.error("Failed to load chat messages:", error);
+    }
+    finally {
+      setChatLoading(false)
+    }
+  },
+  [loading, abortActiveRequest]
+);
 
   const deleteChat = useCallback(
   async (id: string) => {
@@ -763,6 +779,7 @@ export default function Home() {
       const remaining = chats.filter(
         (chat) => chat.id !== id
       );
+      loadedChatIdsRef.current.delete(id);
 
       if (remaining.length === 0) {
         const freshChat = await createChat();
@@ -795,6 +812,7 @@ export default function Home() {
     }catch (error) {
         console.error("Failed to delete chat:", error);
         setChats((prev) => prev.filter((chat) => chat.id !== id));
+        loadedChatIdsRef.current.delete(id);
 
         if (id === activeChatId) {
           localStorage.removeItem("documind-active-chat");
@@ -1251,11 +1269,12 @@ export default function Home() {
 
                     setChats((prev) => [newChat, ...prev]);
                     setActiveChatId(newChat.id);
+                    localStorage.setItem("documind-active-chat", newChat.id);
                     setDocuments([]);
                     setSelectedDocumentIds([]);
                     setView("chat");
 
-                    localStorage.setItem("documind-active-chat", newChat.id);
+                    
                   } catch (error) {
                     console.error("Failed to create chat:", error);
                   }
@@ -1674,15 +1693,24 @@ export default function Home() {
                   </>
                 ) : (
                   <div className="space-y-8">
-                    {messages.map((msg) => (
-                      <MessageBubble key={msg.id} message={msg} />
-                    ))}
-
-                    {loading && (
+                    {chatLoading ? (
                       <div className="flex items-center gap-2 text-[#9AA8C2]">
                         <Loader2 size={18} className="animate-spin" />
-                        <span className="text-sm">Thinking...</span>
+                        <span className="text-sm">Loading chat...</span>
                       </div>
+                    ) : (
+                      <>
+                        {messages.map((msg) => (
+                          <MessageBubble key={msg.id} message={msg} />
+                        ))}
+
+                        {loading && (
+                          <div className="flex items-center gap-2 text-[#9AA8C2]">
+                            <Loader2 size={18} className="animate-spin" />
+                            <span className="text-sm">Thinking...</span>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     <div ref={bottomRef} />
