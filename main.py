@@ -1,11 +1,9 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from fastapi import Depends, Header, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 from dotenv import load_dotenv
-from fastapi.middleware.cors import CORSMiddleware
 from io import BytesIO
 import os
 import uuid
@@ -72,19 +70,7 @@ def debug():
         "openapi_url": app.openapi_url,
         "routes": [route.path for route in app.routes],
     }
-# ============================================================
-# CORS
-# ============================================================
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://documind-frontend-5hts.onrender.com",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 # ============================================================
 # PYDANTIC MODELS
 # ============================================================
