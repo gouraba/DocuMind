@@ -373,62 +373,80 @@ export default function Home() {
   useEffect(() => {
   const loadChats = async () => {
     try {
+      console.log("LIST CHATS CALLED");
+
       const backendChats = await listChats();
+
+      console.log("LIST CHATS RESULT:", backendChats);
+
+      if (backendChats.length === 0) {
+        const firstChat = await createChat();
+
+        setChats([firstChat]);
+        setActiveChatId(firstChat.id);
+
+        localStorage.setItem("documind-active-chat", firstChat.id);
+
+        return;
+      }
+
+      // Decide which chat should be active FIRST
+      const savedChatId = localStorage.getItem("documind-active-chat");
+
+      const activeChatIdToUse =
+        savedChatId &&
+        backendChats.some((chat) => chat.chat_id === savedChatId)
+          ? savedChatId
+          : backendChats[0].chat_id;
+
+      // Load messages ONLY for the active chat
       const chats: Chat[] = [];
-        for (const chat of backendChats) {
+
+      for (const chat of backendChats) {
+        let messages: Message[] = [];
+
+        if (chat.chat_id === activeChatIdToUse) {
           try {
             const savedMessages = await listMessages(chat.chat_id);
 
-            chats.push({
-              id: chat.chat_id,
-              title: chat.title || "New chat",
-              messages: savedMessages.map((msg) => ({
-                id: msg.message_id,
-                role: msg.role,
-                content: msg.content,
-              })),
-            });
+            messages = savedMessages.map((msg) => ({
+              id: msg.message_id,
+              role: msg.role,
+              content: msg.content,
+            }));
           } catch (error) {
             console.error(
               `Failed to load messages for chat ${chat.chat_id}:`,
               error
             );
-
-            chats.push({
-              id: chat.chat_id,
-              title: chat.title || "New chat",
-              messages: [],
-            });
           }
         }
-        if (chats.length > 0) {
-          setChats(chats);
 
-          const savedChatId = localStorage.getItem("documind-active-chat");
-
-          const activeChat =
-            savedChatId && chats.some((chat) => chat.id === savedChatId)
-              ? savedChatId
-              : chats[0].id;
-
-          setActiveChatId(activeChat);
-          localStorage.setItem("documind-active-chat", activeChat);
-        }else {
-          const firstChat = await createChat();
-          setChats([firstChat]);
-          setActiveChatId(firstChat.id);
-          localStorage.setItem("documind-active-chat", firstChat.id);
-        }
-      } catch (error) {
-        console.error("Failed to load chats:", error);
-      } finally {
-        setHydrated(true);
+        chats.push({
+          id: chat.chat_id,
+          title: chat.title || "New chat",
+          messages,
+        });
       }
-    };
-    if (session) {
-  loadChats();
+
+      setChats(chats);
+      setActiveChatId(activeChatIdToUse);
+
+      localStorage.setItem(
+        "documind-active-chat",
+        activeChatIdToUse
+      );
+    } catch (error) {
+      console.error("Failed to load chats:", error);
+    } finally {
+      setHydrated(true);
+    }
+  };
+
+  if (session) {
+    loadChats();
   }
-  }, [session]);
+}, [session]);
 
   // --------------------------------------------------
   // SAVE CHATS
