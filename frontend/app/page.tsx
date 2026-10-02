@@ -354,7 +354,7 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
-  const [hydrated, setHydrated] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
@@ -446,9 +446,12 @@ export default function Home() {
   };
 
   if (session) {
-    loadChats();
-  }
-}, [session]);
+  setHydrated(false);
+  loadChats();
+} else if (!authLoading) {
+  setHydrated(true);
+}
+}, [session,authLoading]);
 
   // --------------------------------------------------
   // SAVE CHATS
@@ -1694,9 +1697,11 @@ export default function Home() {
                 ) : (
                   <div className="space-y-8">
                     {chatLoading ? (
-                      <div className="flex items-center gap-2 text-[#9AA8C2]">
-                        <Loader2 size={18} className="animate-spin" />
-                        <span className="text-sm">Loading chat...</span>
+                      <div className="flex min-h-[60vh] items-center justify-center">
+                        <div className="flex flex-col items-center gap-3 text-[#9AA8C2]">
+                          <Loader2 size={28} className="animate-spin" />
+                          <span className="text-sm">Loading conversation...</span>
+                        </div>
                       </div>
                     ) : (
                       <>
