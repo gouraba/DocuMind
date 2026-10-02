@@ -14,11 +14,24 @@ from docx import Document as DocxDocument
 from chunk import split_text_into_chunks
 from fastapi import Header
 from embedding import embedding_manager
+from fastapi.middleware.cors import CORSMiddleware
+
 import json
 # =======================================
 # =====================
 # ENVIRONMENT
 # ============================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://documind-frontend-5hts.onrender.com",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
