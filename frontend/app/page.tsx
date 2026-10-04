@@ -354,7 +354,7 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const [hydrated, setHydrated] = useState(true);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
@@ -374,79 +374,41 @@ export default function Home() {
 
   useEffect(() => {
   const loadChats = async () => {
-    try {
-      console.log("LIST CHATS CALLED");
+  try {
+    console.log("LIST CHATS CALLED");
 
-      const backendChats = await listChats();
+    const backendChats = await listChats();
 
-      console.log("LIST CHATS RESULT:", backendChats);
+    console.log("LIST CHATS RESULT:", backendChats);
 
-      if (backendChats.length === 0) {
-        const firstChat = await createChat();
-
-        setChats([firstChat]);
-        setActiveChatId(firstChat.id);
-
-        localStorage.setItem("documind-active-chat", firstChat.id);
-
-        return;
-      }
-
-      // Decide which chat should be active FIRST
-      const savedChatId = localStorage.getItem("documind-active-chat");
-
-      const activeChatIdToUse =
-        savedChatId &&
-        backendChats.some((chat) => chat.chat_id === savedChatId)
-          ? savedChatId
-          : backendChats[0].chat_id;
-
-      // Load messages ONLY for the active chat
-      const chats: Chat[] = [];
-
-      for (const chat of backendChats) {
-        let messages: Message[] = [];
-
-        if (chat.chat_id === activeChatIdToUse) {
-          try {
-            const savedMessages = await listMessages(chat.chat_id);
-
-            messages = savedMessages.map((msg) => ({
-              id: msg.message_id,
-              role: msg.role,
-              content: msg.content,
-            }));
-          } catch (error) {
-            console.error(
-              `Failed to load messages for chat ${chat.chat_id}:`,
-              error
-            );
-          }
-        }
-
-        chats.push({
-          id: chat.chat_id,
-          title: chat.title || "New chat",
-          messages,
-        });
-      }
-
-      setChats(chats);
-      setActiveChatId(activeChatIdToUse);
-
-      localStorage.setItem(
-        "documind-active-chat",
-        activeChatIdToUse
-      );
-    } catch (error) {
-      console.error("Failed to load chats:", error);
-    } finally {
-      setHydrated(true);
+    if (backendChats.length === 0) {
+      setChats([]);
+      setActiveChatId(null);
+      localStorage.removeItem("documind-active-chat");
+      return;
     }
-  };
 
+    const chats: Chat[] = [];
+
+    for (const chat of backendChats) {
+      chats.push({
+        id: chat.chat_id,
+        title: chat.title || "New chat",
+        messages: [],
+      });
+    }
+
+    setChats(chats);
+    setActiveChatId(null);
+    localStorage.removeItem("documind-active-chat");
+
+  } catch (error) {
+    console.error("Failed to load chats:", error);
+  } finally {
+    setHydrated(true);
+  }
+};
   if (session) {
-  setHydrated(false);
   loadChats();
 } else if (!authLoading) {
   setHydrated(true);
@@ -706,18 +668,25 @@ export default function Home() {
   // CHAT LIST ACTIONS
   // --------------------------------------------------
 
-  const newChat = useCallback(async () => {
-    if (loading) abortActiveRequest();
-      const chat = await createChat();
-      setChats((prev) => [chat, ...prev]);
-      setActiveChatId(chat.id);
-      loadedChatIdsRef.current.add(chat.id);
-      localStorage.setItem("documind-active-chat", chat.id);
-      setMessage("");
-      setDocuments([]);
-      setSelectedDocumentIds([]);
-      setView("chat");
-  }, [loading, abortActiveRequest]);
+  const newChat = useCallback(() => {
+  try {
+    if (loading) {
+      abortActiveRequest();
+    }
+
+    // New chat is temporary.
+    // Do NOT create a backend chat yet.
+    setActiveChatId(null);
+    localStorage.removeItem("documind-active-chat");
+
+    setMessage("");
+    setDocuments([]);
+    setSelectedDocumentIds([]);
+    setView("chat");
+  } catch (error) {
+    console.error("Failed to open new chat:", error);
+  }
+}, [loading, abortActiveRequest]);
 
   const openChat = useCallback(
   async (id: string) => {
@@ -843,15 +812,22 @@ export default function Home() {
   ]
 );
   const updateActiveChat = useCallback(
-    (updater: (chat: Chat) => Chat) => {
-      if (!activeChatId) return;
+    (
+      updater: (chat: Chat) => Chat,
+      chatIdOverride?: string
+    ) => {
+      const targetChatId = chatIdOverride ?? activeChatId;
+
+      if (!targetChatId) return;
+
       setChats((prev) =>
-        prev.map((chat) => (chat.id === activeChatId ? updater(chat) : chat))
+        prev.map((chat) =>
+          chat.id === targetChatId ? updater(chat) : chat
+        )
       );
     },
     [activeChatId]
   );
-
   // --------------------------------------------------
   // SEND MESSAGE
   // --------------------------------------------------
@@ -859,7 +835,37 @@ export default function Home() {
   const sendMessage = useCallback(
   async (text?: string) => {
     const question = (text ?? message).trim();
-    if (!question || loading || !activeChatId) return;
+    if (!question || loading) return;
+    let chatId = activeChatId;
+    if (!chatId) {
+      try {
+        const createdChat = await createChat();
+        chatId = createdChat.id;
+        const title =
+          question.length > 35
+            ? question.slice(0, 35) + "..."
+            : question;
+
+        const newChat: Chat = {
+          ...createdChat,
+          title,
+          messages: [],
+        };
+
+        setChats((prev) => [newChat, ...prev]);
+        setActiveChatId(chatId);
+
+        localStorage.setItem(
+          "documind-active-chat",
+          chatId
+        );
+
+        loadedChatIdsRef.current.add(chatId);
+      } catch (error) {
+        console.error("Failed to create chat:", error);
+        return;
+      }
+    }
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -875,10 +881,9 @@ export default function Home() {
             : question
           : chat.title,
       messages: [...chat.messages, userMessage],
-    }));
+}), chatId);
 
-    await saveMessage(activeChatId, "user", question);
-
+    await saveMessage(chatId, "user", question);
     setMessage("");
     setLoading(true);
 
@@ -889,7 +894,7 @@ export default function Home() {
       console.log("READY DOCUMENTS:", readyDocuments);
       console.log("ACTIVE CHAT ID IN SEND:", activeChatId);
       const chatDocuments = readyDocuments.filter(
-    (document) => document.chat_id === activeChatId
+        (document) => document.chat_id === chatId
   );
   const activeDocument =
   chatDocuments.length > 0
@@ -903,7 +908,7 @@ export default function Home() {
         signal: controller.signal,
         body: JSON.stringify({
           query: question,
-          chat_id: activeChatId,
+          chat_id: chatId,
           document_id: activeDocument?.id ?? null,
           top_k: 5,
         }),
@@ -934,7 +939,7 @@ export default function Home() {
       updateActiveChat((chat) => ({
         ...chat,
         messages: [...chat.messages, assistantMessage],
-      }));
+      }), chatId);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -995,12 +1000,12 @@ export default function Home() {
                     }
                   : msg
               ),
-            }));
+            }), chatId);
         }
       }
       if (assistantContent.trim()) {
         await saveMessage(
-          activeChatId,
+          chatId,
           "assistant",
           assistantContent
         );
@@ -1025,7 +1030,7 @@ export default function Home() {
       updateActiveChat((chat) => ({
         ...chat,
         messages: [...chat.messages, errorMessage],
-      }));
+      }), chatId);
     } finally {
       if (abortControllerRef.current === controller) {
         setLoading(false);
@@ -1065,13 +1070,6 @@ export default function Home() {
   // LOADING SHELL
   // --------------------------------------------------
 
-  if (!hydrated) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#212121] text-white">
-        <Loader2 size={24} className="animate-spin" />
-      </div>
-    );
-  }
   if (authLoading) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#212121] text-white">
@@ -1271,32 +1269,34 @@ export default function Home() {
 
           {sidebarOpen && (
             <aside className="relative flex h-screen w-[290px] flex-col bg-[#0B1020]">
-{/* NEW CHAT */}
-
+            {/* NEW CHAT */}
               <div className="p-3">
                 <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const newChat = await createChat();
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      if (loading) {
+                        abortActiveRequest();
+                      }
 
-                    setChats((prev) => [newChat, ...prev]);
-                    setActiveChatId(newChat.id);
-                    localStorage.setItem("documind-active-chat", newChat.id);
-                    setDocuments([]);
-                    setSelectedDocumentIds([]);
-                    setView("chat");
+                      // Open a temporary new chat.
+                      // Do NOT create it in Supabase yet.
+                      setActiveChatId(null);
+                      localStorage.removeItem("documind-active-chat");
 
-                    
-                  } catch (error) {
-                    console.error("Failed to create chat:", error);
-                  }
-                }}
-                className="flex w-full items-center gap-3 rounded-xl border border-[#2A3958] bg-transparent shadow-[0_0_0_1px_rgba(79,140,255,0.03)] px-4 py-3 text-sm text-[#E6ECF8] transition hover:bg-[#182238]"
-              >
-                <Plus size={19} />
-                <span>New chat</span>
-              </button>
+                      setMessage("");
+                      setDocuments([]);
+                      setSelectedDocumentIds([]);
+                      setView("chat");
+                    } catch (error) {
+                      console.error("Failed to open new chat:", error);
+                    }
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl border border-[#2A3958] bg-transparent shadow-[0_0_0_1px_rgba(79,140,255,0.03)] px-4 py-3 text-sm text-[#E6ECF8] transition hover:bg-[#182238]"
+                >
+                  <Plus size={19} />
+                  <span>New chat</span>
+                </button>
               </div>
           {/* NAVIGATION */}
 
