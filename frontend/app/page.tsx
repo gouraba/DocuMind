@@ -715,17 +715,6 @@ export default function Home() {
     setMessage("");
     setView("chat");
 
-    // Clear the currently displayed messages immediately
-    setChats((prevChats) =>
-      prevChats.map((chat) =>
-        chat.id === id
-          ? {
-              ...chat,
-              messages: [],
-            }
-          : chat
-      )
-    );
 
     setChatLoading(true);
 
@@ -1343,10 +1332,8 @@ setChats((prev) =>
                 <span>Chat</span>
               </button>
           </div>
-
           {/* RECENT CHATS */}
-          <div className="px-3 pt-4">
-
+          <div className="flex min-h-0 flex-1 flex-col px-3 pt-4">
             {/* TOGGLE */}
             <button
               type="button"
@@ -1362,7 +1349,7 @@ setChats((prev) =>
 
             {/* CHAT LIST */}
             {showRecentChats && (
-              <div className="mt-1 space-y-1">
+              <div className="mt-1 min-h-0 flex-1 overflow-y-auto space-y-1">
                 {chats.map((chat) => (
                   <div
                     key={chat.id}
@@ -1397,7 +1384,6 @@ setChats((prev) =>
                 ))}
               </div>
             )}
-
           </div>
           {/* ACCOUNT / SETTINGS */}
           
@@ -1735,28 +1721,32 @@ setChats((prev) =>
                   </>
                 ) : (
                   <div className="space-y-8">
-                    {chatLoading ? (
-                      <div className="flex min-h-[60vh] items-center justify-center">
-                        <div className="flex flex-col items-center gap-3 text-[#9AA8C2]">
-                          <Loader2 size={28} className="animate-spin" />
-                          <span className="text-sm">Loading conversation...</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {messages.map((msg) => (
-                          <MessageBubble key={msg.id} message={msg} />
-                        ))}
-
-                        {loading && (
-                          <div className="flex items-center gap-2 text-[#9AA8C2]">
-                            <Loader2 size={18} className="animate-spin" />
-                            <span className="text-sm">Thinking...</span>
+                    <div className="relative">
+                        {chatLoading && (
+                          <div className="absolute inset-0 z-10 flex items-center justify-center">
+                            <Loader2
+                              size={24}
+                              className="animate-spin text-[#9AA8C2]"
+                            />
                           </div>
                         )}
-                      </>
-                    )}
 
+                        <div className={chatLoading ? "invisible" : ""}>
+                          {messages.map((msg) => (
+                            <MessageBubble
+                              key={msg.id}
+                              message={msg}
+                            />
+                          ))}
+
+                          {loading && (
+                            <div className="flex items-center gap-2 text-[#9AA8C2]">
+                              <Loader2 size={18} className="animate-spin" />
+                              <span className="text-sm">Thinking...</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     <div ref={bottomRef} />
                   </div>
                 )}
