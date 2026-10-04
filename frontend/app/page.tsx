@@ -278,18 +278,6 @@ export default function Home() {
 
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
-
-  useEffect(() => {
-  if (!session) return;
-
-  const savedChatId = localStorage.getItem("documind-active-chat");
-
-  if (savedChatId) {
-    setActiveChatId(savedChatId);
-    return;
-  }
-
-}, [session]);
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -371,50 +359,80 @@ export default function Home() {
   // --------------------------------------------------
   // LOAD CHATS FROM LOCAL STORAGE
   // --------------------------------------------------
-
+    
   useEffect(() => {
   const loadChats = async () => {
-  try {
-    console.log("LIST CHATS CALLED");
+    try {
+      console.log("LIST CHATS CALLED");
+      const backendChats = await listChats();
+      console.log("LIST CHATS RESULT:", backendChats);
+      const chats: Chat[] = [];
+      for (const chat of backendChats) {
+        let messages: Message[] = [];
+        const savedChatId =
+        sessionStorage.getItem("documind-active-chat") ||
+        localStorage.getItem("documind-active-chat");
 
-    const backendChats = await listChats();
+        if (chat.chat_id === savedChatId) {
+          try {
+            const savedMessages = await listMessages(
+              chat.chat_id
+            );
 
-    console.log("LIST CHATS RESULT:", backendChats);
+            messages = savedMessages.map((msg) => ({
+              id: msg.message_id,
+              role: msg.role,
+              content: msg.content,
+            }));
+          } catch (error) {
+            console.error(
+              `Failed to load messages for chat ${chat.chat_id}:`,
+              error
+            );
+          }
+        }
 
-    if (backendChats.length === 0) {
-      setChats([]);
+        chats.push({
+          id: chat.chat_id,
+          title: chat.title || "New chat",
+          messages,
+        });
+      }    
+    setChats(chats);
+    const savedChatId =
+    sessionStorage.getItem("documind-active-chat") ||
+    localStorage.getItem("documind-active-chat");
+
+    console.log("SAVED CHAT ID:", savedChatId);
+    console.log(
+      "BACKEND CHAT IDS:",
+      backendChats.map((chat) => chat.chat_id)
+    );
+    const savedChatExists =
+      savedChatId &&
+      backendChats.some(
+        (chat) => chat.chat_id === savedChatId
+      );
+
+    if (savedChatExists) {
+      setActiveChatId(savedChatId);
+    } else {
       setActiveChatId(null);
       localStorage.removeItem("documind-active-chat");
-      return;
     }
-
-    const chats: Chat[] = [];
-
-    for (const chat of backendChats) {
-      chats.push({
-        id: chat.chat_id,
-        title: chat.title || "New chat",
-        messages: [],
-      });
+    } catch (error) {
+      console.error("Failed to load chats:", error);
+    } finally {
+      setHydrated(true);
     }
+  };
 
-    setChats(chats);
-    setActiveChatId(null);
-    localStorage.removeItem("documind-active-chat");
-
-  } catch (error) {
-    console.error("Failed to load chats:", error);
-  } finally {
+  if (session) {
+    loadChats();
+  } else if (!authLoading) {
     setHydrated(true);
   }
-};
-  if (session) {
-  loadChats();
-} else if (!authLoading) {
-  setHydrated(true);
-}
-}, [session,authLoading]);
-
+}, [session, authLoading]);
   // --------------------------------------------------
   // SAVE CHATS
   // --------------------------------------------------
@@ -674,10 +692,9 @@ export default function Home() {
       abortActiveRequest();
     }
 
-    // New chat is temporary.
-    // Do NOT create a backend chat yet.
     setActiveChatId(null);
     localStorage.removeItem("documind-active-chat");
+    sessionStorage.removeItem("documind-active-chat");
 
     setMessage("");
     setDocuments([]);
@@ -694,6 +711,7 @@ export default function Home() {
 
     setActiveChatId(id);
     localStorage.setItem("documind-active-chat", id);
+    sessionStorage.setItem("documind-active-chat", id);
     setMessage("");
     setView("chat");
 
@@ -859,8 +877,12 @@ export default function Home() {
           "documind-active-chat",
           chatId
         );
-
+        sessionStorage.setItem(
+          "documind-active-chat",
+          chatId
+        );
         loadedChatIdsRef.current.add(chatId);
+        localStorage.removeItem("documind-working-chat");
       } catch (error) {
         console.error("Failed to create chat:", error);
         return;
@@ -868,20 +890,26 @@ export default function Home() {
     }
 
     const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: question,
-    };
-    updateActiveChat((chat) => ({
-      ...chat,
-      title:
-        chat.messages.length === 0
-          ? question.length > 35
-            ? question.slice(0, 35) + "..."
-            : question
-          : chat.title,
-      messages: [...chat.messages, userMessage],
-}), chatId);
+  id: crypto.randomUUID(),
+  role: "user",
+  content: question,
+};
+setChats((prev) =>
+  prev.map((chat) =>
+    chat.id === chatId
+      ? {
+          ...chat,
+          title:
+            chat.messages.length === 0
+              ? question.length > 35
+                ? question.slice(0, 35) + "..."
+                : question
+              : chat.title,
+          messages: [...chat.messages, userMessage],
+        }
+      : chat
+  )
+);
 
     await saveMessage(chatId, "user", question);
     setMessage("");
@@ -892,7 +920,7 @@ export default function Home() {
 
     try {
       console.log("READY DOCUMENTS:", readyDocuments);
-      console.log("ACTIVE CHAT ID IN SEND:", activeChatId);
+      console.log("CHAT ID IN SEND:", chatId);
       const chatDocuments = readyDocuments.filter(
         (document) => document.chat_id === chatId
   );
@@ -1283,6 +1311,7 @@ export default function Home() {
                       // Do NOT create it in Supabase yet.
                       setActiveChatId(null);
                       localStorage.removeItem("documind-active-chat");
+                      sessionStorage.removeItem("documind-active-chat");
 
                       setMessage("");
                       setDocuments([]);
