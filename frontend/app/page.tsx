@@ -370,8 +370,7 @@ export default function Home() {
       for (const chat of backendChats) {
         let messages: Message[] = [];
         const savedChatId =
-        sessionStorage.getItem("documind-active-chat") ||
-        localStorage.getItem("documind-active-chat");
+        sessionStorage.getItem("documind-active-chat");
 
         if (chat.chat_id === savedChatId) {
           try {
@@ -398,10 +397,10 @@ export default function Home() {
           messages,
         });
       }    
+    
     setChats(chats);
     const savedChatId =
-    sessionStorage.getItem("documind-active-chat") ||
-    localStorage.getItem("documind-active-chat");
+    sessionStorage.getItem("documind-active-chat");
 
     console.log("SAVED CHAT ID:", savedChatId);
     console.log(
@@ -418,7 +417,7 @@ export default function Home() {
       setActiveChatId(savedChatId);
     } else {
       setActiveChatId(null);
-      localStorage.removeItem("documind-active-chat");
+      sessionStorage.removeItem("documind-active-chat");
     }
     } catch (error) {
       console.error("Failed to load chats:", error);
@@ -693,7 +692,6 @@ export default function Home() {
     }
 
     setActiveChatId(null);
-    localStorage.removeItem("documind-active-chat");
     sessionStorage.removeItem("documind-active-chat");
 
     setMessage("");
@@ -710,7 +708,6 @@ export default function Home() {
     if (loading) abortActiveRequest();
 
     setActiveChatId(id);
-    localStorage.setItem("documind-active-chat", id);
     sessionStorage.setItem("documind-active-chat", id);
     setMessage("");
     setView("chat");
@@ -861,11 +858,6 @@ export default function Home() {
 
         setChats((prev) => [newChat, ...prev]);
         setActiveChatId(chatId);
-
-        localStorage.setItem(
-          "documind-active-chat",
-          chatId
-        );
         sessionStorage.setItem(
           "documind-active-chat",
           chatId
@@ -878,27 +870,27 @@ export default function Home() {
       }
     }
 
-    const userMessage: Message = {
-  id: crypto.randomUUID(),
-  role: "user",
-  content: question,
-};
-setChats((prev) =>
-  prev.map((chat) =>
-    chat.id === chatId
-      ? {
-          ...chat,
-          title:
-            chat.messages.length === 0
-              ? question.length > 35
-                ? question.slice(0, 35) + "..."
-                : question
-              : chat.title,
-          messages: [...chat.messages, userMessage],
-        }
-      : chat
-  )
-);
+      const userMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: question,
+      };
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                title:
+                  chat.messages.length === 0
+                    ? question.length > 35
+                      ? question.slice(0, 35) + "..."
+                      : question
+                    : chat.title,
+                messages: [...chat.messages, userMessage],
+              }
+            : chat
+        )
+      );
 
     await saveMessage(chatId, "user", question);
     setMessage("");
