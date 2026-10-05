@@ -543,57 +543,87 @@ export default function Home() {
   }, [hydrated, fetchDocuments]);
 
   const uploadFiles = useCallback(
-    async (files: FileList | File[]) => {
-      const list = Array.from(files);
+  async (files: FileList | File[]) => {
+    const list = Array.from(files);
 
-      for (const file of list) {
-        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-          setDocumentsError(
-            `"${file.name}" is over the ${MAX_FILE_SIZE_MB}MB limit.`
+    for (const file of list) {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        setDocumentsError(
+          `"${file.name}" is over the ${MAX_FILE_SIZE_MB}MB limit.`
+        );
+        continue;
+      }
+
+      // --------------------------------------------------
+      // NEW CHAT → CREATE THE CHAT FIRST
+      // --------------------------------------------------
+      let chatId = activeChatId;
+
+      if (!chatId) {
+        try {
+          const createdChat = await createChat();
+
+          chatId = createdChat.id;
+
+          const newChat: Chat = {
+            ...createdChat,
+            title: "New chat",
+            messages: [],
+          };
+
+          setChats((prev) => [newChat, ...prev]);
+          setActiveChatId(chatId);
+
+          sessionStorage.setItem(
+            "documind-active-chat",
+            chatId
           );
+
+          loadedChatIdsRef.current.add(chatId);
+        } catch (error) {
+          console.error("Failed to create chat for upload:", error);
+          setDocumentsError("Could not create a new chat.");
           continue;
         }
-        const chatId = activeChatId;
+      }
 
-        if (!chatId) {
-            throw new Error("Please select or create a chat before uploading a document.");
+      const tempId = crypto.randomUUID();
+
+      const optimisticDoc: DocumentItem = {
+        id: tempId,
+        name: file.name,
+        size: file.size,
+        status: "uploading",
+        uploadedAt: Date.now(),
+        chat_id: chatId,
+      };
+
+      setDocuments((prev) => [optimisticDoc, ...prev]);
+
+      try {
+        const formData = new FormData();
+
+        formData.append("file", file);
+
+        // IMPORTANT: use the local chatId
+        formData.append("chat_id", chatId);
+
+        const res = await fetch(ENDPOINTS.documentUpload, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+
+          throw new Error(
+            errData?.detail || `Upload failed (${res.status})`
+          );
         }
-        
-        const tempId = crypto.randomUUID();
 
-        const optimisticDoc: DocumentItem = {
-          id: tempId,
-          name: file.name,
-          size: file.size,
-          status: "uploading",
-          uploadedAt: Date.now(),
-          chat_id: chatId,
-        };
+        const data = await res.json();
 
-        setDocuments((prev) => [optimisticDoc, ...prev]);
-
-        try {
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("chat_id", activeChatId);
-
-          const res = await fetch(ENDPOINTS.documentUpload, {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!res.ok) {
-            const errData = await res.json().catch(() => null);
-            throw new Error(
-              errData?.detail || `Upload failed (${res.status})`
-            );
-          }
-
-          // The backend is the source of truth for the real id/status,
-          // so refresh from it rather than trusting the optimistic row.
-          const data = await res.json();
-
-          setDocuments((prev) =>
+        setDocuments((prev) =>
           prev.map((d) =>
             d.id === tempId
               ? {
@@ -608,27 +638,26 @@ export default function Home() {
               : d
           )
         );
-      }catch (err) {
+      } catch (err) {
         setDocuments((prev) =>
-              prev.map((d) =>
-                d.id === tempId
-                  ? {
-                      ...d,
-                      status: "error",
-                      error:
-                        err instanceof Error
-                          ? err.message
-                          : "Upload failed",
-                    }
-                  : d
-              )
-            );
-          }
-        }
-      },
-      [activeChatId]
-    );
-
+          prev.map((d) =>
+            d.id === tempId
+              ? {
+                  ...d,
+                  status: "error",
+                  error:
+                    err instanceof Error
+                      ? err.message
+                      : "Upload failed",
+                }
+              : d
+          )
+        );
+      }
+    }
+  },
+  [activeChatId]
+);
   const handleFileInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files?.length) uploadFiles(e.target.files);
