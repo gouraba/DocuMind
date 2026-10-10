@@ -120,7 +120,7 @@ type Toast = {
 // If your backend uses different routes, this is the only
 // place you should need to change.
 
-const API_URL =  process.env.NEXT_PUBLIC_API_URL||"http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const ENDPOINTS = {
   ask: `${API_URL}/ask/stream`,
@@ -1286,17 +1286,36 @@ export default function Home() {
     if (!userId || !activeChatId || !hasProcessing) return;
 
     let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
+    let busy = false; // a request is running: never start a second one
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     const tick = async () => {
-      if (!document.hidden) await refreshDocuments(activeChatId, true);
-      if (!stopped) timer = setTimeout(tick, POLL_MS);
+      if (stopped || busy) return;
+      busy = true;
+      try {
+        if (!document.hidden) await refreshDocuments(activeChatId, true);
+      } finally {
+        busy = false;
+      }
+      if (!stopped) {
+        clearTimeout(timer); // exactly ONE pending timer at any time
+        timer = setTimeout(tick, POLL_MS);
+      }
+    };
+    // back in view: refresh now instead of waiting for a (throttled) timer.
+    // If a request is already running it re-arms the timer itself.
+    const onVisible = () => {
+      if (document.hidden || stopped) return;
+      clearTimeout(timer);
+      tick();
     };
     timer = setTimeout(tick, POLL_MS);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       stopped = true;
       clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [userId, activeChatId, hasProcessing, refreshDocuments]);
 

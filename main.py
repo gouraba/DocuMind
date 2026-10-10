@@ -709,17 +709,30 @@ def list_documents(chat_id: str, user_id: str = Depends(get_current_user_id)):
         # thread) must not leave a spinner forever. Progress updates every few
         # seconds, so no update for PROCESS_STALL_SECONDS means it is dead.
         if row["status"] == "processing" and is_stalled(row.get("updated_at")):
-            row["status"], row["stage"] = "error", "failed"
-            row["error_message"] = STALLED_MESSAGE
             try:
-                set_document(
-                    row["document_id"],
-                    status="error",
-                    stage="failed",
-                    error_message=STALLED_MESSAGE,
+                # only if it is STILL processing: a worker that finished a moment
+                # ago must not have its "ready" overwritten with "failed"
+                changed = (
+                    supabase.table("documents")
+                    .update(
+                        {
+                            "status": "error",
+                            "stage": "failed",
+                            "error_message": STALLED_MESSAGE,
+                            "updated_at": utc_now(),
+                        }
+                    )
+                    .eq("document_id", row["document_id"])
+                    .eq("status", "processing")
+                    .execute()
+                    .data
                 )
             except Exception:
                 logger.exception("Could not persist stalled state for %s", row["document_id"])
+                changed = True  # cannot save it, but still report the failure
+            if changed:
+                row["status"], row["stage"] = "error", "failed"
+                row["error_message"] = STALLED_MESSAGE
 
         total = row.get("total_chunks") or 0
         done = row.get("processed_chunks") or 0
